@@ -1,17 +1,22 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { School, FileText, Mail, TrendingUp, ArrowRight, Clock } from 'lucide-react'
+import { School, FileText, Mail, TrendingUp, ArrowRight, Clock, Sparkles } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useSchools } from '@/hooks/useSchools'
 import { useEssays } from '@/hooks/useEssays'
 import { useLORs } from '@/hooks/useLORs'
 import { Card, Badge, Spinner } from '@/components/ui'
-
+import type { FitResult } from '@/types'
 
 function daysUntil(iso?: string) {
   if (!iso) return null
   const diff = new Date(iso).getTime() - Date.now()
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function loadFitCache(): Record<string, FitResult> {
+  try { return JSON.parse(localStorage.getItem('beacon-fit-v1') ?? '{}') }
+  catch { return {} }
 }
 
 export function DashboardPage() {
@@ -50,8 +55,10 @@ export function DashboardPage() {
       .slice(0, 5)
   }, [schools, essays])
 
-  const loading = sl || el || ll
+  const fitCache = useMemo(loadFitCache, [])
+  const analyzedSchools = useMemo(() => schools.filter(s => fitCache[s.id]), [schools, fitCache])
 
+  const loading = sl || el || ll
   const firstName = user?.displayName?.split(' ')[0] ?? 'Student'
 
   return (
@@ -69,7 +76,6 @@ export function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Stat cards */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <StatCard
               icon={<School size={16} />}
@@ -94,7 +100,7 @@ export function DashboardPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             {/* Upcoming deadlines */}
             <Card className="p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -107,7 +113,12 @@ export function DashboardPage() {
                 <div className="flex flex-col gap-2">
                   {urgentDeadlines.map((item, i) => (
                     <div key={i} className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-body truncate">{item.label}</p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {item.days! <= 7 && (
+                          <span className="w-2 h-2 rounded-full bg-danger animate-pulse shrink-0" />
+                        )}
+                        <p className="text-sm text-body truncate">{item.label}</p>
+                      </div>
                       <Badge color={item.days! <= 7 ? 'red' : item.days! <= 14 ? 'yellow' : 'gray'}>
                         {item.days === 0 ? 'Today' : `${item.days}d`}
                       </Badge>
@@ -130,9 +141,67 @@ export function DashboardPage() {
               </div>
             </Card>
           </div>
+
+          {/* Strength widget — only shown when at least one school has been analyzed */}
+          {analyzedSchools.length > 0 && (
+            <StrengthWidget
+              analyzed={analyzedSchools.map(s => ({ id: s.id, name: s.name, fit: fitCache[s.id] }))}
+              totalSchools={schools.length}
+            />
+          )}
         </>
       )}
     </div>
+  )
+}
+
+function StrengthWidget({
+  analyzed,
+  totalSchools,
+}: {
+  analyzed: { id: string; name: string; fit: FitResult }[]
+  totalSchools: number
+}) {
+  const avg = Math.round(analyzed.reduce((sum, s) => sum + s.fit.fitScore, 0) / analyzed.length)
+  const labels = ['Safety', 'Likely', 'Good Match', 'Reach', 'Stretch'] as const
+  const dist = labels
+    .map(label => ({ label, count: analyzed.filter(s => s.fit.fitLabel === label).length }))
+    .filter(d => d.count > 0)
+  const notAnalyzed = totalSchools - analyzed.length
+  const barColor = avg >= 75 ? 'bg-success' : avg >= 50 ? 'bg-warn' : 'bg-danger'
+  const textColor = avg >= 75 ? 'text-success' : avg >= 50 ? 'text-warn' : 'text-danger'
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles size={14} className="text-beacon" />
+        <h2 className="text-sm font-semibold text-light">Application Strength</h2>
+        <span className="text-xs text-muted ml-1">{analyzed.length} school{analyzed.length !== 1 ? 's' : ''} analyzed</span>
+      </div>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="shrink-0">
+          <span className={`text-3xl font-bold ${textColor}`}>{avg}</span>
+          <p className="text-xs text-muted">avg fit score</p>
+        </div>
+        <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${avg}%` }} />
+        </div>
+      </div>
+      {dist.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {dist.map(d => (
+            <span key={d.label} className="text-xs bg-border text-muted px-2 py-0.5 rounded-full">
+              {d.count} {d.label}
+            </span>
+          ))}
+        </div>
+      )}
+      {notAnalyzed > 0 && (
+        <Link to="/schools" className="text-xs text-beacon hover:underline">
+          Analyze {notAnalyzed} more school{notAnalyzed !== 1 ? 's' : ''} →
+        </Link>
+      )}
+    </Card>
   )
 }
 

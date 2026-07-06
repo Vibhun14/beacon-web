@@ -3,10 +3,44 @@ import type { ScorecardSchool, CollegeData } from '@/types'
 
 const colleges = collegesData as unknown as CollegeData[]
 
+export function getColleges(): CollegeData[] { return colleges }
+
+const ALIASES: Record<string, string> = {
+  'mit': 'massachusetts institute of technology',
+  'umich': 'university of michigan',
+  'unc': 'university of north carolina',
+  'uva': 'university of virginia',
+  'usc': 'university of southern california',
+  'ucla': 'university of california los angeles',
+  'ucb': 'university of california berkeley',
+  'cal': 'university of california berkeley',
+  'cmu': 'carnegie mellon',
+  'bu': 'boston university',
+  'bc': 'boston college',
+  'nu': 'northeastern',
+  'nyu': 'new york university',
+  'gt': 'georgia tech',
+  'gatech': 'georgia tech',
+  'uiuc': 'illinois',
+  'purdue': 'purdue',
+  'nd': 'notre dame',
+  'wustl': 'washington university st louis',
+  'jhu': 'johns hopkins',
+  'upenn': 'university of pennsylvania',
+  'penn': 'university of pennsylvania',
+  'tufts': 'tufts',
+  'vandy': 'vanderbilt',
+}
+
 export function searchLocalColleges(query: string): CollegeData[] {
-  if (!query.trim()) return []
-  const q = query.toLowerCase()
-  return colleges.filter(c => c.name.toLowerCase().includes(q)).slice(0, 20)
+  const raw = query.toLowerCase().trim()
+  const q = ALIASES[raw] ?? raw
+  if (q.length < 2) return []
+  return colleges.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    c.id.toLowerCase().includes(q) ||
+    c.location?.city?.toLowerCase().includes(q)
+  ).slice(0, 20)
 }
 
 export function getCollegeById(id: string): CollegeData | undefined {

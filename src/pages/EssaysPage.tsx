@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Search, Sparkles, X } from 'lucide-react'
 import { useEssays } from '@/hooks/useEssays'
 import { useAuth } from '@/context/AuthContext'
+import { callGemini } from '@/lib/gemini'
 import { Card, Button, Input, Select, Spinner } from '@/components/ui'
-import type { Essay, EssayStatus } from '@/types'
+import type { Essay, EssayStatus, EssayInsight } from '@/types'
+import toast from 'react-hot-toast'
 
 const STATUS_LABELS: Record<EssayStatus, string> = {
   not_started: 'Not Started',
@@ -34,6 +36,37 @@ function categoryBadgeClass(cat?: string | null): string {
   }
 }
 
+function InsightPanel({ insight, onClose }: { insight: EssayInsight; onClose: () => void }) {
+  return (
+    <div className="rounded-b-xl border border-t-0 border-beacon/20 bg-beacon-dim/20 px-4 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-beacon uppercase tracking-wide">AI Tips</p>
+        <button onClick={onClose} className="text-muted hover:text-light"><X size={12} /></button>
+      </div>
+      <div className="flex flex-col gap-3">
+        <div>
+          <p className="text-xs font-semibold text-muted mb-1">What they want</p>
+          <p className="text-xs text-body">{insight.whatTheyWant}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted mb-1">Common mistakes</p>
+          <ul className="space-y-0.5">
+            {insight.commonMistakes.map((m, i) => <li key={i} className="text-xs text-body">· {m}</li>)}
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted mb-1">Suggested angle</p>
+          <p className="text-xs text-body">{insight.angle}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted mb-1">Opening hook idea</p>
+          <p className="text-xs text-body italic">"{insight.openingHook}"</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface EssayCardProps {
   essay: Essay
   update: (id: string, data: Partial<Essay>) => Promise<void>
@@ -42,57 +75,110 @@ interface EssayCardProps {
 
 function EssayCard({ essay, update, remove }: EssayCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [insight, setInsight] = useState<EssayInsight | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [showInsight, setShowInsight] = useState(false)
   const wordLimit = essay.wordLimit ?? 0
+  const minRead = wordLimit > 0 ? Math.ceil(wordLimit / 200) : 0
+
+  const handleInsightClick = async () => {
+    if (insight) {
+      setShowInsight(s => !s)
+      return
+    }
+    if (analyzing) return
+    setAnalyzing(true)
+    try {
+      const promptText = `You are a college admissions essay expert. Analyze this essay prompt and provide strategic advice.
+
+Essay prompt: "${essay.prompt}"
+${essay.schoolName ? `School: ${essay.schoolName}` : 'Type: Common App / Universal'}
+${essay.category ? `Category: ${essay.category}` : ''}
+${wordLimit > 0 ? `Word limit: ${wordLimit}` : ''}
+
+Return ONLY valid JSON (no markdown, no code fences):
+{
+  "whatTheyWant": "What the admissions committee is really looking for with this prompt",
+  "commonMistakes": ["First common mistake students make", "Second common mistake", "Third common mistake"],
+  "angle": "A specific, differentiated angle or approach to make this essay stand out",
+  "openingHook": "A compelling first sentence or hook to start the essay"
+}`
+
+      const text = await callGemini({ contents: [{ parts: [{ text: promptText }] }] })
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('No JSON in response')
+      const result = JSON.parse(jsonMatch[0]) as EssayInsight
+      setInsight(result)
+      setShowInsight(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'AI analysis failed')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   return (
-    <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:border-beacon/20 transition-colors group">
-      {/* Left: prompt + badges */}
-      <div className="flex-1 min-w-0">
-        <p
-          className={`text-sm text-light leading-relaxed cursor-pointer ${expanded ? '' : 'truncate'}`}
-          onClick={() => setExpanded(e => !e)}
-          title={expanded ? undefined : essay.prompt}
-        >
-          {essay.prompt}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-          {essay.category && (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${categoryBadgeClass(essay.category)}`}>
-              {essay.category}
-            </span>
-          )}
-          {wordLimit > 0 && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-border text-muted">
-              {wordLimit}w
-            </span>
-          )}
-          {essay.deadline && (
-            <span className="text-xs text-muted">Due {new Date(essay.deadline).toLocaleDateString()}</span>
-          )}
+    <div>
+      <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:border-beacon/20 transition-colors group ${showInsight && insight ? 'rounded-b-none border-b-0' : ''}`}>
+        <div className="flex-1 min-w-0">
+          <p
+            className={`text-sm text-light leading-relaxed cursor-pointer ${expanded ? '' : 'truncate'}`}
+            onClick={() => setExpanded(e => !e)}
+            title={expanded ? undefined : essay.prompt}
+          >
+            {essay.prompt}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {essay.category && (
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${categoryBadgeClass(essay.category)}`}>
+                {essay.category}
+              </span>
+            )}
+            {wordLimit > 0 && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-border text-muted">
+                {wordLimit}w
+              </span>
+            )}
+            {minRead > 0 && (
+              <span className="text-xs text-muted">~{minRead}m read</span>
+            )}
+            {essay.deadline && (
+              <span className="text-xs text-muted">Due {new Date(essay.deadline).toLocaleDateString()}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleInsightClick}
+            title={insight ? 'Toggle AI tips' : 'Get AI tips'}
+            className={`transition-colors ${analyzing ? 'text-beacon animate-pulse' : insight ? 'text-beacon' : 'text-muted hover:text-beacon opacity-0 group-hover:opacity-100'}`}
+          >
+            <Sparkles size={13} />
+          </button>
+          <Select
+            value={essay.status}
+            onChange={e => update(essay.id, { status: e.target.value as EssayStatus })}
+            className="w-28 py-1 text-xs"
+          >
+            {(Object.keys(STATUS_LABELS) as EssayStatus[]).map(s => (
+              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+            ))}
+          </Select>
+          <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_COLOR[essay.status]}`}>
+            {STATUS_LABELS[essay.status]}
+          </span>
+          <button
+            onClick={() => remove(essay.id)}
+            className="text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
       </div>
-
-      {/* Right: status + delete */}
-      <div className="flex items-center gap-2 shrink-0">
-        <Select
-          value={essay.status}
-          onChange={e => update(essay.id, { status: e.target.value as EssayStatus })}
-          className="w-28 py-1 text-xs"
-        >
-          {(Object.keys(STATUS_LABELS) as EssayStatus[]).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </Select>
-        <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_COLOR[essay.status]}`}>
-          {STATUS_LABELS[essay.status]}
-        </span>
-        <button
-          onClick={() => remove(essay.id)}
-          className="text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
+      {showInsight && insight && (
+        <InsightPanel insight={insight} onClose={() => setShowInsight(false)} />
+      )}
     </div>
   )
 }
@@ -109,10 +195,7 @@ function EssayGroup({ label, essays, update, remove }: GroupProps) {
 
   return (
     <div className="mb-4">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 mb-2 group"
-      >
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 mb-2 group">
         {open ? <ChevronDown size={12} className="text-muted" /> : <ChevronRight size={12} className="text-muted" />}
         <span className="text-xs font-semibold uppercase tracking-widest text-muted group-hover:text-light transition-colors">
           {label}
@@ -144,9 +227,7 @@ export function EssaysPage() {
 
   const sources = useMemo(() => {
     const names = new Set<string>()
-    for (const e of essays) {
-      if (e.schoolName) names.add(e.schoolName)
-    }
+    for (const e of essays) { if (e.schoolName) names.add(e.schoolName) }
     return ['All', 'Common App', ...Array.from(names).sort()]
   }, [essays])
 
@@ -206,11 +287,9 @@ export function EssaysPage() {
         <Button onClick={() => setShowAdd(true)}><Plus size={14} /> Add Prompt</Button>
       </div>
 
-      {/* Filter row */}
       {!loading && essays.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2">
-            {/* Search */}
             <div className="relative flex-1">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
               <input
@@ -220,7 +299,6 @@ export function EssaysPage() {
                 className="w-full bg-surface border border-border rounded-xl pl-8 pr-3 py-2 text-sm text-light placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
               />
             </div>
-            {/* Source */}
             <select
               value={sourceFilter}
               onChange={e => setSourceFilter(e.target.value)}
@@ -228,7 +306,6 @@ export function EssaysPage() {
             >
               {sources.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            {/* Category */}
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
@@ -239,11 +316,11 @@ export function EssaysPage() {
           </div>
           <p className="text-xs text-muted mt-2 px-1">
             Showing {filtered.length} of {essays.length} prompt{essays.length !== 1 ? 's' : ''}
+            <span className="ml-2 text-beacon/70">· Click <Sparkles size={10} className="inline" /> on any prompt for AI tips</span>
           </p>
         </div>
       )}
 
-      {/* Add modal */}
       {showAdd && createPortal(
         <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center pt-24 px-4" onClick={() => setShowAdd(false)}>
           <div className="bg-surface rounded-2xl border border-border w-full max-w-lg shadow-card p-6" onClick={e => e.stopPropagation()}>

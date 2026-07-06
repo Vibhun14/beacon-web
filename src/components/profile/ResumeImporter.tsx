@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload, X, Sparkles } from 'lucide-react'
+import { Upload, X, Sparkles, FileText } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { callGemini } from '@/lib/gemini'
 import type { Activity, Honor } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -14,7 +15,7 @@ interface Props {
   onImport: (activities: Activity[], honors: Honor[]) => void
 }
 
-const SYSTEM_PROMPT = `You are a college application assistant. Parse the following resume text and extract activities and honors. Return ONLY valid JSON with this exact structure:
+const PARSE_PROMPT = `You are a college application assistant. Parse this resume PDF and extract activities and honors. Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 {
   "activities": [
     {
@@ -40,63 +41,56 @@ const SYSTEM_PROMPT = `You are a college application assistant. Parse the follow
 }
 Only include activities and honors you find clear evidence for. Do not invent data. Activity type must be one of: Club, Sport, Work, Volunteer, Research, Internship, Arts, Other. Honor level must be one of: School, Regional, State, National, International. Timing must be: School year, Summer, or Both.`
 
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export function ResumeImporter({ onImport }: Props) {
   const [open, setOpen] = useState(false)
-  const [resumeText, setResumeText] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
   const [selectedActs, setSelectedActs] = useState<Set<number>>(new Set())
   const [selectedHons, setSelectedHons] = useState<Set<number>>(new Set())
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetModal = () => {
-    setResumeText('')
+    setFile(null)
     setParsed(null)
     setSelectedActs(new Set())
     setSelectedHons(new Set())
     setParsing(false)
   }
 
-  const handleClose = () => {
-    setOpen(false)
-    resetModal()
+  const handleClose = () => { setOpen(false); resetModal() }
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (f) setFile(f)
   }
 
   const handleParse = async () => {
-    if (!resumeText.trim()) return toast.error('Paste your resume text first')
-    const key = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!key) return toast.error('VITE_ANTHROPIC_API_KEY not set in .env')
-
+    if (!file) return toast.error('Select a PDF resume first')
     setParsing(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2048,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: resumeText }],
-        }),
+      const base64 = await toBase64(file)
+      const text = await callGemini({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: 'application/pdf', data: base64 } },
+            { text: PARSE_PROMPT },
+          ]
+        }]
       })
-
-      if (!res.ok) {
-        const err = await res.text()
-        throw new Error(`API error ${res.status}: ${err}`)
-      }
-
-      const data = await res.json()
-      const text = data.content?.[0]?.text ?? ''
       const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('No JSON in response')
-
       const result = JSON.parse(jsonMatch[0]) as ParsedResult
       setParsed(result)
-      // Pre-select all
       setSelectedActs(new Set(result.activities.map((_, i) => i)))
       setSelectedHons(new Set(result.honors.map((_, i) => i)))
     } catch (err) {
@@ -107,15 +101,10 @@ export function ResumeImporter({ onImport }: Props) {
   }
 
   const toggleAct = (i: number) => setSelectedActs(prev => {
-    const s = new Set(prev)
-    s.has(i) ? s.delete(i) : s.add(i)
-    return s
+    const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s
   })
-
   const toggleHon = (i: number) => setSelectedHons(prev => {
-    const s = new Set(prev)
-    s.has(i) ? s.delete(i) : s.add(i)
-    return s
+    const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s
   })
 
   const handleImport = () => {
@@ -144,42 +133,50 @@ export function ResumeImporter({ onImport }: Props) {
             className="bg-surface rounded-2xl border border-border w-full max-w-2xl shadow-card mb-8"
             onClick={e => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border">
               <div>
                 <h2 className="font-semibold text-light">Import from Resume</h2>
-                <p className="text-xs text-muted mt-0.5">Paste your resume and AI will extract activities & honors</p>
+                <p className="text-xs text-muted mt-0.5">Upload your PDF resume and AI will extract activities & honors</p>
               </div>
               <button onClick={handleClose} className="text-muted hover:text-light"><X size={16} /></button>
             </div>
 
             <div className="p-6">
               {!parsed ? (
-                /* Paste panel */
                 <div className="flex flex-col gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-body uppercase tracking-wide block mb-1.5">
-                      Resume Text
-                    </label>
-                    <textarea
-                      className="w-full bg-ink border border-border rounded-xl px-3 py-3 text-sm text-light placeholder:text-muted resize-none focus:outline-none focus:ring-2 focus:ring-beacon/40 font-mono"
-                      rows={12}
-                      placeholder="Paste your full resume text here…"
-                      value={resumeText}
-                      onChange={e => setResumeText(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleFilePick}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-border hover:border-beacon/40 rounded-xl p-10 flex flex-col items-center gap-3 transition-colors group"
+                  >
+                    <FileText size={32} className="text-muted group-hover:text-beacon transition-colors" />
+                    {file ? (
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-light">{file.name}</p>
+                        <p className="text-xs text-muted mt-0.5">{(file.size / 1024).toFixed(0)} KB · Click to change</p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-sm text-muted">Click to select a PDF resume</p>
+                        <p className="text-xs text-muted mt-0.5">PDF files only</p>
+                      </div>
+                    )}
+                  </button>
                   <div className="flex gap-3">
-                    <Button onClick={handleParse} loading={parsing} className="flex-1">
+                    <Button onClick={handleParse} loading={parsing} disabled={!file} className="flex-1">
                       {!parsing && <Sparkles size={14} />}
-                      {parsing ? 'Parsing…' : 'Parse with AI'}
+                      {parsing ? 'Parsing with AI…' : 'Parse with AI'}
                     </Button>
                     <Button variant="ghost" onClick={handleClose}>Cancel</Button>
                   </div>
                 </div>
               ) : (
-                /* Preview panel */
                 <div className="flex flex-col gap-5">
                   {parsed.activities.length > 0 && (
                     <div>
@@ -189,18 +186,11 @@ export function ResumeImporter({ onImport }: Props) {
                       <div className="flex flex-col gap-2">
                         {parsed.activities.map((a, i) => (
                           <label key={i} className="flex items-start gap-3 p-3 rounded-xl border border-border hover:border-beacon/30 cursor-pointer transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={selectedActs.has(i)}
-                              onChange={() => toggleAct(i)}
-                              className="mt-0.5 accent-beacon"
-                            />
+                            <input type="checkbox" checked={selectedActs.has(i)} onChange={() => toggleAct(i)} className="mt-0.5 accent-beacon" />
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-light">{a.organization}</p>
                               <p className="text-xs text-muted">{a.role} · {a.type} · {a.hoursPerWeek}h/wk</p>
-                              {a.description && (
-                                <p className="text-xs text-body mt-0.5 line-clamp-2">{a.description}</p>
-                              )}
+                              {a.description && <p className="text-xs text-body mt-0.5 line-clamp-2">{a.description}</p>}
                             </div>
                           </label>
                         ))}
@@ -216,12 +206,7 @@ export function ResumeImporter({ onImport }: Props) {
                       <div className="flex flex-col gap-2">
                         {parsed.honors.map((h, i) => (
                           <label key={i} className="flex items-start gap-3 p-3 rounded-xl border border-border hover:border-beacon/30 cursor-pointer transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={selectedHons.has(i)}
-                              onChange={() => toggleHon(i)}
-                              className="mt-0.5 accent-beacon"
-                            />
+                            <input type="checkbox" checked={selectedHons.has(i)} onChange={() => toggleHon(i)} className="mt-0.5 accent-beacon" />
                             <div>
                               <p className="text-sm font-medium text-light">{h.title}</p>
                               <p className="text-xs text-muted">{h.level} · Grade{h.grades.length !== 1 ? 's' : ''} {h.grades.join(', ')}</p>
@@ -237,16 +222,10 @@ export function ResumeImporter({ onImport }: Props) {
                   )}
 
                   <div className="flex gap-3 pt-2 border-t border-border">
-                    <Button
-                      onClick={handleImport}
-                      disabled={totalSelected === 0}
-                      className="flex-1"
-                    >
+                    <Button onClick={handleImport} disabled={totalSelected === 0} className="flex-1">
                       Import {totalSelected} item{totalSelected !== 1 ? 's' : ''}
                     </Button>
-                    <Button variant="ghost" onClick={() => setParsed(null)}>
-                      Re-paste
-                    </Button>
+                    <Button variant="ghost" onClick={() => { setParsed(null); setFile(null) }}>Re-upload</Button>
                     <Button variant="ghost" onClick={handleClose}>Cancel</Button>
                   </div>
                 </div>

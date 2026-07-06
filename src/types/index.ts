@@ -208,6 +208,23 @@ export interface ProfileStats {
   apScores?: { subject: string; score: number }[]
 }
 
+// ─── AI Features ─────────────────────────────────────────────────────────────
+
+export interface FitResult {
+  fitScore: number
+  fitLabel: string
+  strengths: string[]
+  gaps: string[]
+  tip: string
+}
+
+export interface EssayInsight {
+  whatTheyWant: string
+  commonMistakes: string[]
+  angle: string
+  openingHook: string
+}
+
 // ─── College Scorecard API ───────────────────────────────────────────────────
 // The API returns flat dot-notation keys, not nested objects.
 

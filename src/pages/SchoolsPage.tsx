@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Plus, ExternalLink, Trash2, X, Globe } from 'lucide-react'
+import { Search, Plus, ExternalLink, Trash2, X, Globe, Sparkles } from 'lucide-react'
 import { useSchools } from '@/hooks/useSchools'
 import { useAuth } from '@/context/AuthContext'
 import { useProfile } from '@/context/ProfileContext'
-import { searchLocalColleges, getCollegeById } from '@/lib/collegeScorecard'
-import { addEssay } from '@/lib/db'
+import { searchLocalColleges, getCollegeById, getColleges } from '@/lib/collegeScorecard'
+import { addEssay, getActivities, getHonors } from '@/lib/db'
+import { callGemini } from '@/lib/gemini'
 import { Card, Button, Input, Select, Badge, Spinner } from '@/components/ui'
-import type { ApplicationStatus, DecisionPlan, CollegeData, School, OnboardingData } from '@/types'
+import type { ApplicationStatus, DecisionPlan, CollegeData, School, OnboardingData, ProfileStats, FitResult } from '@/types'
 import toast from 'react-hot-toast'
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -48,6 +49,46 @@ function fmt(n: number | undefined, prefix = '') {
   return prefix + n.toLocaleString()
 }
 
+function loadFitCache(): Record<string, FitResult> {
+  try { return JSON.parse(localStorage.getItem('beacon-fit-v1') ?? '{}') }
+  catch { return {} }
+}
+
+function FitPanel({ result }: { result: FitResult }) {
+  const score = result.fitScore
+  const color = score >= 75 ? 'text-success' : score >= 50 ? 'text-warn' : 'text-danger'
+  const barColor = score >= 75 ? 'bg-success' : score >= 50 ? 'bg-warn' : 'bg-danger'
+  return (
+    <div className="rounded-b-xl border border-t-0 border-beacon/20 bg-beacon-dim/20 px-5 py-4 flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <span className={`text-2xl font-bold ${color}`}>{score}</span>
+        <div>
+          <p className="text-sm font-semibold text-light">{result.fitLabel}</p>
+          <p className="text-xs text-muted">AI Fit Score</p>
+        </div>
+        <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden ml-2">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${score}%` }} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs font-semibold text-success mb-1.5">Strengths</p>
+          <ul className="space-y-0.5">
+            {result.strengths.map((s, i) => <li key={i} className="text-xs text-body">· {s}</li>)}
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-warn mb-1.5">Gaps</p>
+          <ul className="space-y-0.5">
+            {result.gaps.map((g, i) => <li key={i} className="text-xs text-body">· {g}</li>)}
+          </ul>
+        </div>
+      </div>
+      {result.tip && <p className="text-xs text-beacon">💡 {result.tip}</p>}
+    </div>
+  )
+}
+
 export function SchoolsPage() {
   const { user } = useAuth()
   const { profile } = useProfile()
@@ -58,9 +99,36 @@ export function SchoolsPage() {
   const [selectedCollege, setSelectedCollege] = useState<CollegeData | null>(null)
   const [detailForm, setDetailForm] = useState({ deadline: '', portalUrl: '', notes: '', decisionPlan: 'RD' as DecisionPlan })
   const [savingDetail, setSavingDetail] = useState(false)
+  const [notesSaving, setNotesSaving] = useState(false)
 
-  // Synchronous local search — derive results directly, no state or debounce needed
-  const results = query.trim().length >= 1 ? searchLocalColleges(query) : []
+  const [fitScores, setFitScores] = useState<Record<string, FitResult>>(loadFitCache)
+  const [analyzing, setAnalyzing] = useState<Record<string, boolean>>({})
+  const [expandedFit, setExpandedFit] = useState<Set<string>>(new Set())
+  const [actCount, setActCount] = useState(0)
+  const [honCount, setHonCount] = useState(0)
+
+  const results = query.trim().length >= 2 ? searchLocalColleges(query) : []
+
+  useEffect(() => {
+    if (!user) return
+    Promise.all([getActivities(user.uid), getHonors(user.uid)])
+      .then(([acts, hons]) => { setActCount(acts.length); setHonCount(hons.length) })
+      .catch(() => {})
+  }, [user])
+
+  const hasMigrated = useRef(false)
+  useEffect(() => {
+    if (loading || !user || hasMigrated.current) return
+    const needsMigration = schools.filter(s => !s.collegeId && s.name)
+    if (!needsMigration.length) { hasMigrated.current = true; return }
+    const allColleges = getColleges()
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    needsMigration.forEach(school => {
+      const match = allColleges.find(c => norm(c.name) === norm(school.name))
+      if (match) update(school.id, { collegeId: match.id })
+    })
+    hasMigrated.current = true
+  }, [schools, loading, user])
 
   const handleAdd = async (college: CollegeData) => {
     if (!user) return
@@ -83,9 +151,7 @@ export function SchoolsPage() {
       status: 'researching',
       decisionPlan: 'RD',
     })
-    // Auto-create essay prompts
     if (college.supplementalPrompts.length > 0 && user) {
-      console.log('Looking up collegeId:', college.id)
       await Promise.all(college.supplementalPrompts.map(p =>
         addEssay({
           userId: user.uid,
@@ -111,12 +177,7 @@ export function SchoolsPage() {
       notes: school.notes ?? '',
       decisionPlan: school.decisionPlan,
     })
-    if (school.collegeId) {
-      console.log('Looking up collegeId:', school.collegeId)
-      setSelectedCollege(getCollegeById(school.collegeId) ?? null)
-    } else {
-      setSelectedCollege(null)
-    }
+    setSelectedCollege(school.collegeId ? (getCollegeById(school.collegeId) ?? null) : null)
   }
 
   const handleSaveDetail = async () => {
@@ -142,6 +203,75 @@ export function SchoolsPage() {
     }
   }
 
+  const handleNotesBlur = async () => {
+    if (!selectedSchool || detailForm.notes === (selectedSchool.notes ?? '')) return
+    setNotesSaving(true)
+    try {
+      await update(selectedSchool.id, { notes: detailForm.notes || undefined })
+      setSelectedSchool(prev => prev ? { ...prev, notes: detailForm.notes || undefined } : null)
+    } finally {
+      setNotesSaving(false)
+    }
+  }
+
+  const handleFitClick = async (e: React.MouseEvent, school: School) => {
+    e.stopPropagation()
+    if (fitScores[school.id]) {
+      setExpandedFit(prev => {
+        const s = new Set(prev); s.has(school.id) ? s.delete(school.id) : s.add(school.id); return s
+      })
+      return
+    }
+    if (analyzing[school.id]) return
+    setAnalyzing(prev => ({ ...prev, [school.id]: true }))
+    try {
+      const p = profile as (OnboardingData & ProfileStats) | null
+      const college = school.collegeId ? getCollegeById(school.collegeId) : undefined
+      const promptText = `You are a college admissions expert. Analyze how well this student fits the following school and return a JSON fit score.
+
+Student profile:
+- GPA (weighted): ${(p as unknown as Record<string, unknown>)?.gpaWeighted ?? p?.gpa ?? 'unknown'}
+- SAT: ${(p as unknown as Record<string, unknown>)?.satTotal ?? p?.sat ?? 'unknown'}, ACT: ${(p as unknown as Record<string, unknown>)?.actComposite ?? p?.act ?? 'unknown'}
+- Activities: ${actCount} listed
+- Honors/Awards: ${honCount} listed
+- State: ${p?.state ?? 'unknown'}
+- Intended Major: ${p?.intendedMajor ?? 'undecided'}
+
+School: ${school.name}
+- Acceptance Rate: ${school.acceptanceRate != null ? Math.round(school.acceptanceRate * 100) + '%' : 'unknown'}
+- Avg SAT: ${school.avgSAT ?? 'unknown'}, Avg ACT: ${school.avgACT ?? 'unknown'}
+- Ranking: ${school.ranking != null ? '#' + school.ranking : 'unranked'}
+- Type: ${college?.type ?? 'unknown'}
+- Location: ${school.city}, ${school.state}
+
+Return ONLY valid JSON (no markdown, no code fences):
+{
+  "fitScore": 72,
+  "fitLabel": "Good Match",
+  "strengths": ["Your SAT is above the school average", "Strong extracurricular involvement"],
+  "gaps": ["Acceptance rate is competitive at 15%"],
+  "tip": "Consider applying EA to demonstrate interest."
+}
+fitLabel must be one of: "Safety", "Likely", "Good Match", "Reach", "Stretch"
+fitScore must be 0-100
+strengths and gaps must each have exactly 2-3 concise bullet items`
+
+      const text = await callGemini({ contents: [{ parts: [{ text: promptText }] }] })
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('No JSON in response')
+      const result = JSON.parse(jsonMatch[0]) as FitResult
+      const cache = loadFitCache()
+      cache[school.id] = result
+      localStorage.setItem('beacon-fit-v1', JSON.stringify(cache))
+      setFitScores(prev => ({ ...prev, [school.id]: result }))
+      setExpandedFit(prev => new Set([...prev, school.id]))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'AI analysis failed')
+    } finally {
+      setAnalyzing(prev => ({ ...prev, [school.id]: false }))
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
@@ -152,7 +282,6 @@ export function SchoolsPage() {
         <Button onClick={() => setShowSearch(true)}><Plus size={14} /> Add School</Button>
       </div>
 
-      {/* Search modal — rendered in a portal so fixed positioning covers the full viewport */}
       {showSearch && createPortal(
         <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center pt-24 px-4" onClick={() => setShowSearch(false)}>
           <div className="bg-surface rounded-2xl border border-border w-full max-w-lg shadow-card" onClick={e => e.stopPropagation()}>
@@ -187,11 +316,9 @@ export function SchoolsPage() {
         document.body
       )}
 
-      {/* Detail modal — portal prevents clipping from parent overflow/transform */}
       {selectedSchool && createPortal(
         <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center pt-16 px-4 overflow-y-auto" onClick={() => setSelectedSchool(null)}>
           <div className="bg-surface rounded-2xl border border-border w-full max-w-xl shadow-card mb-8" onClick={e => e.stopPropagation()}>
-            {/* Header */}
             <div className="p-6 border-b border-border flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-semibold text-light text-lg">{selectedSchool.name}</h2>
@@ -207,7 +334,6 @@ export function SchoolsPage() {
               </div>
             </div>
 
-            {/* Stats */}
             <div className="p-6 border-b border-border">
               <h3 className="text-xs font-medium text-muted uppercase tracking-wide mb-3">Statistics</h3>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2">
@@ -222,7 +348,6 @@ export function SchoolsPage() {
               </div>
             </div>
 
-            {/* Beacon enriched data */}
             {selectedCollege && (
               <div className="p-6 border-b border-border">
                 <h3 className="text-xs font-medium text-muted uppercase tracking-wide mb-3">From Beacon Data</h3>
@@ -247,7 +372,6 @@ export function SchoolsPage() {
               </div>
             )}
 
-            {/* Editable fields */}
             <div className="p-6 flex flex-col gap-4">
               <h3 className="text-xs font-medium text-muted uppercase tracking-wide">Application Details</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -258,13 +382,17 @@ export function SchoolsPage() {
               </div>
               <Input label="Portal URL" placeholder="https://apply.university.edu" value={detailForm.portalUrl} onChange={e => setDetailForm(f => ({ ...f, portalUrl: e.target.value }))} />
               <div>
-                <label className="text-xs font-medium text-body uppercase tracking-wide block mb-1.5">Notes</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-body uppercase tracking-wide">Notes</label>
+                  {notesSaving && <span className="text-xs text-muted">Saving…</span>}
+                </div>
                 <textarea
                   className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-light placeholder:text-muted resize-none focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
                   rows={3}
                   placeholder="Supplemental essay topics, contacts, etc."
                   value={detailForm.notes}
                   onChange={e => setDetailForm(f => ({ ...f, notes: e.target.value }))}
+                  onBlur={handleNotesBlur}
                 />
               </div>
               <div className="flex gap-2">
@@ -277,7 +405,6 @@ export function SchoolsPage() {
         document.body
       )}
 
-      {/* School list */}
       {loading ? (
         <div className="flex items-center justify-center py-20"><Spinner /></div>
       ) : schools.length === 0 ? (
@@ -286,45 +413,56 @@ export function SchoolsPage() {
           <Button onClick={() => setShowSearch(true)}><Plus size={14} /> Add School</Button>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           {schools.map(school => {
             const tier = computeTier(school, profile)
+            const hasFit = !!fitScores[school.id]
+            const isExpanded = expandedFit.has(school.id)
+            const isAnalyzing = !!analyzing[school.id]
             return (
-              <div key={school.id} className="cursor-pointer" onClick={() => openDetail(school)}>
-              <Card
-                className="px-5 py-4 flex items-center gap-4 hover:border-beacon/30 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-light">{school.name}</p>
-                    {school.website && (
-                      <a href={`https://${school.website}`} target="_blank" rel="noreferrer" className="text-muted hover:text-beacon" onClick={e => e.stopPropagation()}>
-                        <ExternalLink size={12} />
-                      </a>
-                    )}
-                    {tier && <Badge color={TIER_COLOR[tier]}>{tier}</Badge>}
-                    {school.ranking != null && <span className="text-xs text-muted">#{school.ranking}</span>}
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-muted">
-                    <span>{school.city}, {school.state}</span>
-                    {school.acceptanceRate && <span>{Math.round(school.acceptanceRate * 100)}% admit</span>}
-                    {school.avgSAT && <span>SAT {school.avgSAT}</span>}
-                    {school.deadline && <span>Due {new Date(school.deadline).toLocaleDateString()}</span>}
-                  </div>
+              <div key={school.id}>
+                <div className="cursor-pointer" onClick={() => openDetail(school)}>
+                  <Card className={`px-5 py-4 flex items-center gap-4 hover:border-beacon/30 transition-colors ${isExpanded && hasFit ? 'rounded-b-none border-b-0' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-light">{school.name}</p>
+                        {school.website && (
+                          <a href={`https://${school.website}`} target="_blank" rel="noreferrer" className="text-muted hover:text-beacon" onClick={e => e.stopPropagation()}>
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
+                        {tier && <Badge color={TIER_COLOR[tier]}>{tier}</Badge>}
+                        {school.ranking != null && <span className="text-xs text-muted">#{school.ranking}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted">
+                        <span>{school.city}, {school.state}</span>
+                        {school.acceptanceRate && <span>{Math.round(school.acceptanceRate * 100)}% admit</span>}
+                        {school.avgSAT && <span>SAT {school.avgSAT}</span>}
+                        {school.deadline && <span>Due {new Date(school.deadline).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => handleFitClick(e, school)}
+                        title={hasFit ? 'Toggle fit score' : 'Analyze fit with AI'}
+                        className={`transition-colors ${isAnalyzing ? 'text-beacon animate-pulse' : hasFit ? 'text-beacon' : 'text-muted hover:text-beacon'}`}
+                      >
+                        <Sparkles size={14} />
+                      </button>
+                      <Select value={school.decisionPlan} onChange={e => update(school.id, { decisionPlan: e.target.value as DecisionPlan })} className="w-20 py-1.5 text-xs">
+                        {(['ED','EA','EDII','REA','RD'] as DecisionPlan[]).map(p => <option key={p} value={p}>{p}</option>)}
+                      </Select>
+                      <Select value={school.status} onChange={e => update(school.id, { status: e.target.value as ApplicationStatus })} className="w-36 py-1.5 text-xs">
+                        {(Object.keys(STATUS_LABELS) as ApplicationStatus[]).map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                      </Select>
+                      <Badge color={STATUS_COLOR[school.status]}>{STATUS_LABELS[school.status]}</Badge>
+                      <button onClick={e => { e.stopPropagation(); remove(school.id, school.name) }} className="text-muted hover:text-danger transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </Card>
                 </div>
-                <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
-                  <Select value={school.decisionPlan} onChange={e => update(school.id, { decisionPlan: e.target.value as DecisionPlan })} className="w-20 py-1.5 text-xs">
-                    {(['ED','EA','EDII','REA','RD'] as DecisionPlan[]).map(p => <option key={p} value={p}>{p}</option>)}
-                  </Select>
-                  <Select value={school.status} onChange={e => update(school.id, { status: e.target.value as ApplicationStatus })} className="w-36 py-1.5 text-xs">
-                    {(Object.keys(STATUS_LABELS) as ApplicationStatus[]).map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </Select>
-                  <Badge color={STATUS_COLOR[school.status]}>{STATUS_LABELS[school.status]}</Badge>
-                  <button onClick={e => { e.stopPropagation(); remove(school.id, school.name) }} className="text-muted hover:text-danger transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </Card>
+                {isExpanded && hasFit && <FitPanel result={fitScores[school.id]!} />}
               </div>
             )
           })}
