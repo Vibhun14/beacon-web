@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { useEssays } from '@/hooks/useEssays'
 import { useAuth } from '@/context/AuthContext'
-import { Card, Button, Input, Select, Badge, Spinner } from '@/components/ui'
+import { Card, Button, Input, Select, Spinner } from '@/components/ui'
 import type { Essay, EssayStatus } from '@/types'
 
 const STATUS_LABELS: Record<EssayStatus, string> = {
@@ -14,25 +14,24 @@ const STATUS_LABELS: Record<EssayStatus, string> = {
   submitted: 'Submitted',
 }
 
-const STATUS_COLOR: Record<EssayStatus, 'blue' | 'green' | 'yellow' | 'red' | 'gray'> = {
-  not_started: 'gray',
-  drafting: 'yellow',
-  revising: 'blue',
-  final: 'green',
-  submitted: 'green',
+const STATUS_COLOR: Record<EssayStatus, string> = {
+  not_started: 'bg-border text-muted',
+  drafting: 'bg-warn/10 text-warn',
+  revising: 'bg-beacon-dim text-beacon',
+  final: 'bg-success/10 text-success',
+  submitted: 'bg-success/10 text-success',
 }
 
-const CATEGORY_COLOR: Record<string, 'blue' | 'green' | 'yellow' | 'red' | 'gray'> = {
-  'Community/Diversity': 'blue',
-  'Intellectual Curiosity': 'green',
-  'Why School': 'yellow',
-  'Extracurricular': 'blue',
-  'Personal Statement': 'gray',
-  'Additional Info': 'gray',
-}
+const CATEGORIES = ['All', 'Community/Diversity', 'Intellectual Curiosity', 'Short Answer', 'Why School', 'Other']
 
-function categoryColor(cat?: string): 'blue' | 'green' | 'yellow' | 'red' | 'gray' {
-  return (cat && CATEGORY_COLOR[cat]) ? CATEGORY_COLOR[cat] : 'gray'
+function categoryBadgeClass(cat?: string | null): string {
+  switch (cat) {
+    case 'Community/Diversity': return 'bg-purple-500/10 text-purple-400'
+    case 'Intellectual Curiosity': return 'bg-beacon-dim text-beacon'
+    case 'Short Answer': return 'bg-border text-muted'
+    case 'Why School': return 'bg-warn/10 text-warn'
+    default: return 'bg-border text-muted'
+  }
 }
 
 interface EssayCardProps {
@@ -42,92 +41,146 @@ interface EssayCardProps {
 }
 
 function EssayCard({ essay, update, remove }: EssayCardProps) {
-  const pct = essay.wordLimit && essay.wordCount != null
-    ? Math.min(100, Math.round((essay.wordCount / essay.wordLimit) * 100))
-    : null
+  const [expanded, setExpanded] = useState(false)
+  const wordLimit = essay.wordLimit ?? 0
 
   return (
-    <Card className="p-5">
-      {/* Top row: category badge, word limit badge, deadline */}
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        {essay.category && <Badge color={categoryColor(essay.category)}>{essay.category}</Badge>}
-        {essay.wordLimit && <Badge color="gray">{essay.wordLimit}w limit</Badge>}
-        {essay.deadline && <span className="text-xs text-muted">Due {new Date(essay.deadline).toLocaleDateString()}</span>}
-      </div>
-
-      {/* Prompt */}
-      <p className="text-sm text-light leading-relaxed mb-3">{essay.prompt}</p>
-
-      {/* Word count + progress bar */}
-      {essay.wordLimit && (
-        <div className="mb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <label className="text-xs text-muted">Words written:</label>
-            <input
-              type="number"
-              min={0}
-              value={essay.wordCount ?? ''}
-              onChange={e => update(essay.id, { wordCount: e.target.value ? parseInt(e.target.value) : undefined })}
-              className="w-16 bg-ink border border-border rounded-lg px-2 py-0.5 text-xs text-light focus:outline-none focus:ring-1 focus:ring-beacon/40"
-              placeholder="0"
-            />
-            <span className="text-xs text-muted">/ {essay.wordLimit}</span>
-          </div>
-          {pct !== null && (
-            <div className="h-1.5 bg-border rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-success' : pct >= 80 ? 'bg-warn' : 'bg-beacon'}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+    <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:border-beacon/20 transition-colors group">
+      {/* Left: prompt + badges */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={`text-sm text-light leading-relaxed cursor-pointer ${expanded ? '' : 'truncate'}`}
+          onClick={() => setExpanded(e => !e)}
+          title={expanded ? undefined : essay.prompt}
+        >
+          {essay.prompt}
+        </p>
+        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          {essay.category && (
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${categoryBadgeClass(essay.category)}`}>
+              {essay.category}
+            </span>
+          )}
+          {wordLimit > 0 && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-border text-muted">
+              {wordLimit}w
+            </span>
+          )}
+          {essay.deadline && (
+            <span className="text-xs text-muted">Due {new Date(essay.deadline).toLocaleDateString()}</span>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Bottom row: status select, badge, delete */}
-      <div className="flex items-center gap-2">
+      {/* Right: status + delete */}
+      <div className="flex items-center gap-2 shrink-0">
         <Select
           value={essay.status}
           onChange={e => update(essay.id, { status: e.target.value as EssayStatus })}
-          className="w-32 py-1.5 text-xs"
+          className="w-28 py-1 text-xs"
         >
           {(Object.keys(STATUS_LABELS) as EssayStatus[]).map(s => (
             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
           ))}
         </Select>
-        <Badge color={STATUS_COLOR[essay.status]}>{STATUS_LABELS[essay.status]}</Badge>
-        <button onClick={() => remove(essay.id)} className="ml-auto text-muted hover:text-danger transition-colors">
-          <Trash2 size={14} />
+        <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_COLOR[essay.status]}`}>
+          {STATUS_LABELS[essay.status]}
+        </span>
+        <button
+          onClick={() => remove(essay.id)}
+          className="text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <Trash2 size={13} />
         </button>
       </div>
-    </Card>
+    </div>
+  )
+}
+
+interface GroupProps {
+  label: string
+  essays: Essay[]
+  update: (id: string, data: Partial<Essay>) => Promise<void>
+  remove: (id: string) => Promise<void>
+}
+
+function EssayGroup({ label, essays, update, remove }: GroupProps) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 mb-2 group"
+      >
+        {open ? <ChevronDown size={12} className="text-muted" /> : <ChevronRight size={12} className="text-muted" />}
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted group-hover:text-light transition-colors">
+          {label}
+        </span>
+        <span className="text-xs text-muted ml-1">({essays.length})</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1.5">
+          {essays.map(essay => (
+            <EssayCard key={essay.id} essay={essay} update={update} remove={remove} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
 export function EssaysPage() {
   const { user } = useAuth()
   const { essays, loading, add, update, remove } = useEssays()
+  const [searchText, setSearchText] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('All')
+  const [categoryFilter, setCategoryFilter] = useState('All')
   const [showAdd, setShowAdd] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [wordLimit, setWordLimit] = useState('')
   const [school, setSchool] = useState('')
   const [deadline, setDeadline] = useState('')
 
+  const sources = useMemo(() => {
+    const names = new Set<string>()
+    for (const e of essays) {
+      if (e.schoolName) names.add(e.schoolName)
+    }
+    return ['All', 'Common App', ...Array.from(names).sort()]
+  }, [essays])
+
+  const filtered = useMemo(() => {
+    return essays.filter(e => {
+      const source = e.schoolName ?? null
+      if (sourceFilter === 'Common App' && source !== null) return false
+      if (sourceFilter !== 'All' && sourceFilter !== 'Common App' && source !== sourceFilter) return false
+      if (categoryFilter !== 'All') {
+        const cat = e.category ?? 'Other'
+        if (categoryFilter === 'Other') {
+          if (['Community/Diversity', 'Intellectual Curiosity', 'Short Answer', 'Why School'].includes(cat)) return false
+        } else if (cat !== categoryFilter) return false
+      }
+      if (searchText.trim()) {
+        if (!e.prompt.toLowerCase().includes(searchText.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [essays, sourceFilter, categoryFilter, searchText])
+
   const grouped = useMemo(() => {
     const map = new Map<string, Essay[]>()
-    for (const essay of essays) {
+    for (const essay of filtered) {
       const key = essay.schoolName || '__common__'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(essay)
     }
-    // Sort: named schools alphabetically, common app last
-    const entries = [...map.entries()].sort(([a], [b]) => {
+    return [...map.entries()].sort(([a], [b]) => {
       if (a === '__common__') return 1
       if (b === '__common__') return -1
       return a.localeCompare(b)
     })
-    return entries
-  }, [essays])
+  }, [filtered])
 
   const handleAdd = async () => {
     if (!prompt.trim() || !user) return
@@ -139,22 +192,56 @@ export function EssaysPage() {
       deadline: deadline || undefined,
       status: 'not_started',
     })
-    setPrompt('')
-    setWordLimit('')
-    setSchool('')
-    setDeadline('')
+    setPrompt(''); setWordLimit(''); setSchool(''); setDeadline('')
     setShowAdd(false)
   }
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-3xl text-light">Essays</h1>
           <p className="text-sm text-muted mt-0.5">{essays.length} prompt{essays.length !== 1 ? 's' : ''} tracked</p>
         </div>
         <Button onClick={() => setShowAdd(true)}><Plus size={14} /> Add Prompt</Button>
       </div>
+
+      {/* Filter row */}
+      {!loading && essays.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input
+                placeholder="Search prompts…"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                className="w-full bg-surface border border-border rounded-xl pl-8 pr-3 py-2 text-sm text-light placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
+              />
+            </div>
+            {/* Source */}
+            <select
+              value={sourceFilter}
+              onChange={e => setSourceFilter(e.target.value)}
+              className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all shrink-0"
+            >
+              {sources.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {/* Category */}
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all shrink-0"
+            >
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-muted mt-2 px-1">
+            Showing {filtered.length} of {essays.length} prompt{essays.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
 
       {/* Add modal */}
       {showAdd && createPortal(
@@ -170,6 +257,7 @@ export function EssaysPage() {
                   placeholder="Describe a challenge you've overcome..."
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
+                  autoFocus
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -194,19 +282,18 @@ export function EssaysPage() {
           <p className="text-muted text-sm mb-4">No essay prompts yet.</p>
           <Button onClick={() => setShowAdd(true)}><Plus size={14} /> Add Prompt</Button>
         </Card>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted text-center py-10">No essays match these filters.</p>
       ) : (
         <div>
           {grouped.map(([key, group]) => (
-            <div key={key} className="mb-6">
-              <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3 px-1">
-                {key === '__common__' ? 'Common App / Other' : key}
-              </h2>
-              <div className="flex flex-col gap-3">
-                {group.map(essay => (
-                  <EssayCard key={essay.id} essay={essay} update={update} remove={remove} />
-                ))}
-              </div>
-            </div>
+            <EssayGroup
+              key={key}
+              label={key === '__common__' ? 'Common App / Universal' : key}
+              essays={group}
+              update={update}
+              remove={remove}
+            />
           ))}
         </div>
       )}

@@ -77,7 +77,7 @@ export function SchoolsPage() {
       inStateTuition: college.tuitionInState,
       outStateTuition: college.tuitionOutOfState,
       enrollment: college.totalEnrollment,
-      ranking: college.rankingOverall,
+      ranking: college.rankingOverall ?? undefined,
       averageAid: college.averageAid,
       averageStartingSalary: college.averageStartingSalary,
       status: 'researching',
@@ -85,13 +85,14 @@ export function SchoolsPage() {
     })
     // Auto-create essay prompts
     if (college.supplementalPrompts.length > 0 && user) {
+      console.log('Looking up collegeId:', college.id)
       await Promise.all(college.supplementalPrompts.map(p =>
         addEssay({
           userId: user.uid,
           schoolId: college.id,
           schoolName: college.name,
           prompt: p.prompt,
-          wordLimit: p.wordLimit ?? undefined,
+          wordLimit: p.wordLimit ?? null,
           category: p.category,
           status: 'not_started',
         })
@@ -111,6 +112,7 @@ export function SchoolsPage() {
       decisionPlan: school.decisionPlan,
     })
     if (school.collegeId) {
+      console.log('Looking up collegeId:', school.collegeId)
       setSelectedCollege(getCollegeById(school.collegeId) ?? null)
     } else {
       setSelectedCollege(null)

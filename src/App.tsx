@@ -12,6 +12,9 @@ import { LORsPage } from '@/pages/LORsPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { ComparePage } from '@/pages/ComparePage'
+import { CalendarPage } from '@/pages/CalendarPage'
+import { ProfilePage } from '@/pages/ProfilePage'
+import { LandingPage } from '@/pages/LandingPage'
 import { Spinner } from '@/components/ui'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -51,6 +54,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
       <Route path="/onboarding" element={user ? <OnboardingPage /> : <Navigate to="/auth" replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -59,7 +63,9 @@ function AppRoutes() {
       <Route path="/lors" element={<ProtectedRoute><LORsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
     </Routes>
   )
 }

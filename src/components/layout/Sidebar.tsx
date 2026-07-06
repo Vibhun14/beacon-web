@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun, GitCompare } from 'lucide-react'
+import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun, GitCompare, CalendarDays, User } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -9,6 +9,8 @@ const NAV = [
   { to: '/schools', icon: School, label: 'Schools' },
   { to: '/compare', icon: GitCompare, label: 'Compare' },
   { to: '/essays', icon: FileText, label: 'Essays' },
+  { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
+  { to: '/profile', icon: User, label: 'Profile' },
   { to: '/lors', icon: Mail, label: 'Recommendations' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
@@ -21,10 +23,7 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 h-screen w-56 bg-surface border-r border-border flex-col z-10">
       {/* Logo */}
       <div className="px-5 py-6 flex items-center gap-3">
-        <div className="relative w-8 h-8">
-          <div className="absolute inset-0 rounded-full bg-beacon opacity-20 animate-beacon" />
-          <div className="absolute inset-1 rounded-full bg-beacon" />
-        </div>
+        <img src="/BeaconLogo.png" alt="Beacon" className="w-8 h-8 object-contain" />
         <span className="font-display text-xl text-light tracking-tight">Beacon</span>
       </div>
 

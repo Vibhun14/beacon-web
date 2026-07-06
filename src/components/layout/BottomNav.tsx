@@ -1,13 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, School, FileText, Mail, GitCompare } from 'lucide-react'
+import { LayoutDashboard, School, FileText, User, CalendarDays } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
   { to: '/schools', icon: School, label: 'Schools' },
   { to: '/essays', icon: FileText, label: 'Essays' },
-  { to: '/lors', icon: Mail, label: 'LORs' },
-  { to: '/compare', icon: GitCompare, label: 'Compare' },
+  { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
+  { to: '/profile', icon: User, label: 'Profile' },
 ]
 
 export function BottomNav() {

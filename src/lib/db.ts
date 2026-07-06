@@ -14,9 +14,15 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
-import type { School, Essay, LOR, OnboardingData } from '@/types'
+import type { School, Essay, LOR, OnboardingData, Activity, Honor, ProfileStats } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function stripUndefined<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T
+}
 
 function toISO(ts: Timestamp | string | undefined): string {
   if (!ts) return new Date().toISOString()
@@ -43,7 +49,7 @@ export async function getSchools(userId: string): Promise<School[]> {
 
 export async function addSchool(data: Omit<School, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const ref = await addDoc(collection(db, 'schools'), {
-    ...data,
+    ...stripUndefined(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -51,7 +57,8 @@ export async function addSchool(data: Omit<School, 'id' | 'createdAt' | 'updated
 }
 
 export async function updateSchool(id: string, data: Partial<School>): Promise<void> {
-  await updateDoc(doc(db, 'schools', id), { ...data, updatedAt: serverTimestamp() })
+  const clean = stripUndefined(data)
+  await updateDoc(doc(db, 'schools', id), { ...clean, updatedAt: serverTimestamp() })
 }
 
 export async function deleteSchool(id: string): Promise<void> {
@@ -77,7 +84,7 @@ export async function getEssays(userId: string): Promise<Essay[]> {
 
 export async function addEssay(data: Omit<Essay, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const ref = await addDoc(collection(db, 'essays'), {
-    ...data,
+    ...stripUndefined(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -111,7 +118,7 @@ export async function getLORs(userId: string): Promise<LOR[]> {
 
 export async function addLOR(data: Omit<LOR, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const ref = await addDoc(collection(db, 'lors'), {
-    ...data,
+    ...stripUndefined(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -151,4 +158,32 @@ export async function getProfile(uid: string): Promise<OnboardingData | null> {
 
 export async function setProfile(uid: string, data: OnboardingData): Promise<void> {
   await setDoc(doc(db, 'profiles', uid), data)
+}
+
+export async function updateProfileStats(uid: string, data: ProfileStats): Promise<void> {
+  await setDoc(doc(db, 'profiles', uid), data, { merge: true })
+}
+
+// ─── Activities ───────────────────────────────────────────────────────────────
+
+export async function getActivities(uid: string): Promise<Activity[]> {
+  const snap = await getDoc(doc(db, 'activities', `${uid}_activities`))
+  if (!snap.exists()) return []
+  return (snap.data().activities ?? []) as Activity[]
+}
+
+export async function setActivitiesDoc(uid: string, activities: Activity[]): Promise<void> {
+  await setDoc(doc(db, 'activities', `${uid}_activities`), { activities })
+}
+
+// ─── Honors ──────────────────────────────────────────────────────────────────
+
+export async function getHonors(uid: string): Promise<Honor[]> {
+  const snap = await getDoc(doc(db, 'honors', `${uid}_honors`))
+  if (!snap.exists()) return []
+  return (snap.data().honors ?? []) as Honor[]
+}
+
+export async function setHonorsDoc(uid: string, honors: Honor[]): Promise<void> {
+  await setDoc(doc(db, 'honors', `${uid}_honors`), { honors })
 }

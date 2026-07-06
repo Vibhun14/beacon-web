@@ -63,7 +63,7 @@ export interface Essay {
   schoolId?: string           // null = Common App / universal
   schoolName?: string
   prompt: string
-  wordLimit?: number
+  wordLimit?: number | null
   status: EssayStatus
   draftUrl?: string
   notes?: string
@@ -128,7 +128,7 @@ export interface CollegeData {
   type: string
   size?: string
   totalEnrollment: number
-  rankingOverall: number
+  rankingOverall: number | null
   cds: {
     acceptanceRate?: number
     sat25?: number; sat50?: number; sat75?: number
@@ -163,6 +163,49 @@ export interface CollegeData {
   _ea_offered: boolean
   _ed_offered: boolean
   _ed2_offered?: boolean
+}
+
+// ─── Activities & Honors ─────────────────────────────────────────────────────
+
+export type ActivityType = 'Club' | 'Sport' | 'Work' | 'Volunteer' | 'Research' | 'Internship' | 'Arts' | 'Other'
+export type TimingType = 'School year' | 'Summer' | 'Both'
+export type HonorLevel = 'School' | 'Regional' | 'State' | 'National' | 'International'
+
+export interface Activity {
+  type: ActivityType
+  organization: string
+  role: string
+  description: string
+  grades: number[]
+  hoursPerWeek: number
+  weeksPerYear: number
+  continueInCollege: boolean
+  timing: TimingType
+}
+
+export interface Honor {
+  title: string
+  grades: number[]
+  level: HonorLevel
+  description: string
+}
+
+// ─── Extended Profile Stats ───────────────────────────────────────────────────
+
+export interface ProfileStats {
+  gpaWeighted?: number
+  gpaUnweighted?: number
+  satTotal?: number
+  satMath?: number
+  satEBRW?: number
+  actComposite?: number
+  actEnglish?: number
+  actMath?: number
+  actReading?: number
+  actScience?: number
+  classRank?: number
+  classSize?: number
+  apScores?: { subject: string; score: number }[]
 }
 
 // ─── College Scorecard API ───────────────────────────────────────────────────

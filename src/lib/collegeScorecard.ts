@@ -1,7 +1,7 @@
 import collegesData from '@/data/colleges.json'
 import type { ScorecardSchool, CollegeData } from '@/types'
 
-const colleges = collegesData as CollegeData[]
+const colleges = collegesData as unknown as CollegeData[]
 
 export function searchLocalColleges(query: string): CollegeData[] {
   if (!query.trim()) return []
@@ -10,7 +10,8 @@ export function searchLocalColleges(query: string): CollegeData[] {
 }
 
 export function getCollegeById(id: string): CollegeData | undefined {
-  return colleges.find(c => c.id === id)
+  const lower = id.toLowerCase()
+  return colleges.find(c => c.id.toLowerCase() === lower)
 }
 
 const BASE = 'https://api.data.gov/ed/collegescorecard/v1/schools'

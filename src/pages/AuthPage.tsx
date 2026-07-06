@@ -42,11 +42,8 @@ export function AuthPage() {
     <div className="min-h-screen bg-ink flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="relative w-10 h-10">
-            <div className="absolute inset-0 rounded-full bg-beacon opacity-20 animate-beacon" />
-            <div className="absolute inset-1.5 rounded-full bg-beacon" />
-          </div>
+        <div className="flex flex-col items-center gap-2 mb-10">
+          <img src="/BeaconLogo.png" alt="Beacon" className="w-8 h-8 object-contain" />
           <span className="font-display text-3xl text-light">Beacon</span>
         </div>
 

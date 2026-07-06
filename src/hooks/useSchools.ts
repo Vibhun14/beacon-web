@@ -46,13 +46,14 @@ export function useSchools() {
   }
 
   const update = async (id: string, data: Partial<School>) => {
-    try {
-      await updateSchool(id, data)
-      setSchools(prev => prev.map(s => (s.id === id ? { ...s, ...data } : s)))
-    } catch (err) {
-      toast.error(fbMsg(err, 'Failed to update school'), { duration: 6000 })
-    }
+  try {
+    await updateSchool(id, data)
+    setSchools(prev => prev.map(s => (s.id === id ? { ...s, ...data } : s)))
+  } catch (err) {
+    console.error('Update school error:', JSON.stringify(err), err)
+    toast.error('Failed to update school')
   }
+}
 
   const remove = async (id: string, name: string) => {
     try {

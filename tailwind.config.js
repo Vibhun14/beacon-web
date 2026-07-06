@@ -41,10 +41,25 @@ export default {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-50%)' },
+        },
+        'gradient-drift': {
+          '0%, 100%': { transform: 'scale(1) translate(0%, 0%)' },
+          '50%': { transform: 'scale(1.2) translate(4%, 3%)' },
+        },
+        'float-up': {
+          from: { opacity: '0', transform: 'translateY(24px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         beacon: 'pulse_beacon 2.8s ease-in-out infinite',
         'fade-in': 'fade-in 0.3s ease-out both',
+        marquee: 'marquee 28s linear infinite',
+        'gradient-drift': 'gradient-drift 12s ease-in-out infinite',
+        'float-up': 'float-up 0.6s ease-out both',
       },
     },
   },
