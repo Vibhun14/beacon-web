@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun } from 'lucide-react'
+import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun, GitCompare } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -7,6 +7,7 @@ import { useTheme } from '@/context/ThemeContext'
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/schools', icon: School, label: 'Schools' },
+  { to: '/compare', icon: GitCompare, label: 'Compare' },
   { to: '/essays', icon: FileText, label: 'Essays' },
   { to: '/lors', icon: Mail, label: 'Recommendations' },
   { to: '/settings', icon: Settings, label: 'Settings' },

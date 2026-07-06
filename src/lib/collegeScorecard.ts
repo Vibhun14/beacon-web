@@ -1,4 +1,17 @@
-import type { ScorecardSchool } from '@/types'
+import collegesData from '@/data/colleges.json'
+import type { ScorecardSchool, CollegeData } from '@/types'
+
+const colleges = collegesData as CollegeData[]
+
+export function searchLocalColleges(query: string): CollegeData[] {
+  if (!query.trim()) return []
+  const q = query.toLowerCase()
+  return colleges.filter(c => c.name.toLowerCase().includes(q)).slice(0, 20)
+}
+
+export function getCollegeById(id: string): CollegeData | undefined {
+  return colleges.find(c => c.id === id)
+}
 
 const BASE = 'https://api.data.gov/ed/collegescorecard/v1/schools'
 const API_KEY = import.meta.env.VITE_COLLEGE_SCORECARD_API_KEY
@@ -29,17 +42,10 @@ export async function searchSchools(query: string, page = 0): Promise<ScorecardS
   params.append('page', String(page))
   params.append('api_key', API_KEY)
 
-  const url = `${BASE}?${params}`
-  console.log('Scorecard fetch:', url)
-
-  const res = await fetch(url)
-  if (!res.ok) {
-    console.error('Scorecard error:', res.status, await res.text())
-    throw new Error('College Scorecard API error')
-  }
+  const res = await fetch(`${BASE}?${params}`)
+  if (!res.ok) throw new Error('College Scorecard API error')
 
   const data = await res.json()
-  console.log('First result raw:', JSON.stringify(data.results?.[0]))
   const raw = data.results as ScorecardSchool[]
   const filtered = raw.filter(s => s['school.name'])
   return filtered

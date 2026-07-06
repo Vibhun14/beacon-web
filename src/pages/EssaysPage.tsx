@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { useEssays } from '@/hooks/useEssays'
 import { useAuth } from '@/context/AuthContext'
 import { Card, Button, Input, Select, Badge, Spinner } from '@/components/ui'
-import type { EssayStatus } from '@/types'
+import type { Essay, EssayStatus } from '@/types'
 
 const STATUS_LABELS: Record<EssayStatus, string> = {
   not_started: 'Not Started',
@@ -22,6 +22,88 @@ const STATUS_COLOR: Record<EssayStatus, 'blue' | 'green' | 'yellow' | 'red' | 'g
   submitted: 'green',
 }
 
+const CATEGORY_COLOR: Record<string, 'blue' | 'green' | 'yellow' | 'red' | 'gray'> = {
+  'Community/Diversity': 'blue',
+  'Intellectual Curiosity': 'green',
+  'Why School': 'yellow',
+  'Extracurricular': 'blue',
+  'Personal Statement': 'gray',
+  'Additional Info': 'gray',
+}
+
+function categoryColor(cat?: string): 'blue' | 'green' | 'yellow' | 'red' | 'gray' {
+  return (cat && CATEGORY_COLOR[cat]) ? CATEGORY_COLOR[cat] : 'gray'
+}
+
+interface EssayCardProps {
+  essay: Essay
+  update: (id: string, data: Partial<Essay>) => Promise<void>
+  remove: (id: string) => Promise<void>
+}
+
+function EssayCard({ essay, update, remove }: EssayCardProps) {
+  const pct = essay.wordLimit && essay.wordCount != null
+    ? Math.min(100, Math.round((essay.wordCount / essay.wordLimit) * 100))
+    : null
+
+  return (
+    <Card className="p-5">
+      {/* Top row: category badge, word limit badge, deadline */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {essay.category && <Badge color={categoryColor(essay.category)}>{essay.category}</Badge>}
+        {essay.wordLimit && <Badge color="gray">{essay.wordLimit}w limit</Badge>}
+        {essay.deadline && <span className="text-xs text-muted">Due {new Date(essay.deadline).toLocaleDateString()}</span>}
+      </div>
+
+      {/* Prompt */}
+      <p className="text-sm text-light leading-relaxed mb-3">{essay.prompt}</p>
+
+      {/* Word count + progress bar */}
+      {essay.wordLimit && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <label className="text-xs text-muted">Words written:</label>
+            <input
+              type="number"
+              min={0}
+              value={essay.wordCount ?? ''}
+              onChange={e => update(essay.id, { wordCount: e.target.value ? parseInt(e.target.value) : undefined })}
+              className="w-16 bg-ink border border-border rounded-lg px-2 py-0.5 text-xs text-light focus:outline-none focus:ring-1 focus:ring-beacon/40"
+              placeholder="0"
+            />
+            <span className="text-xs text-muted">/ {essay.wordLimit}</span>
+          </div>
+          {pct !== null && (
+            <div className="h-1.5 bg-border rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-success' : pct >= 80 ? 'bg-warn' : 'bg-beacon'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bottom row: status select, badge, delete */}
+      <div className="flex items-center gap-2">
+        <Select
+          value={essay.status}
+          onChange={e => update(essay.id, { status: e.target.value as EssayStatus })}
+          className="w-32 py-1.5 text-xs"
+        >
+          {(Object.keys(STATUS_LABELS) as EssayStatus[]).map(s => (
+            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+          ))}
+        </Select>
+        <Badge color={STATUS_COLOR[essay.status]}>{STATUS_LABELS[essay.status]}</Badge>
+        <button onClick={() => remove(essay.id)} className="ml-auto text-muted hover:text-danger transition-colors">
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </Card>
+  )
+}
+
 export function EssaysPage() {
   const { user } = useAuth()
   const { essays, loading, add, update, remove } = useEssays()
@@ -30,6 +112,22 @@ export function EssaysPage() {
   const [wordLimit, setWordLimit] = useState('')
   const [school, setSchool] = useState('')
   const [deadline, setDeadline] = useState('')
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Essay[]>()
+    for (const essay of essays) {
+      const key = essay.schoolName || '__common__'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(essay)
+    }
+    // Sort: named schools alphabetically, common app last
+    const entries = [...map.entries()].sort(([a], [b]) => {
+      if (a === '__common__') return 1
+      if (b === '__common__') return -1
+      return a.localeCompare(b)
+    })
+    return entries
+  }, [essays])
 
   const handleAdd = async () => {
     if (!prompt.trim() || !user) return
@@ -97,39 +195,18 @@ export function EssaysPage() {
           <Button onClick={() => setShowAdd(true)}><Plus size={14} /> Add Prompt</Button>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
-          {essays.map(essay => (
-            <Card key={essay.id} className="p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {essay.schoolName && <span className="text-xs font-medium text-beacon">{essay.schoolName}</span>}
-                    {essay.wordLimit && <span className="text-xs text-muted">{essay.wordLimit} words</span>}
-                    {essay.deadline && (
-                      <span className="text-xs text-muted">
-                        Due {new Date(essay.deadline).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-light leading-relaxed">{essay.prompt}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Select
-                    value={essay.status}
-                    onChange={e => update(essay.id, { status: e.target.value as EssayStatus })}
-                    className="w-32 py-1.5 text-xs"
-                  >
-                    {(Object.keys(STATUS_LABELS) as EssayStatus[]).map(s => (
-                      <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                    ))}
-                  </Select>
-                  <Badge color={STATUS_COLOR[essay.status]}>{STATUS_LABELS[essay.status]}</Badge>
-                  <button onClick={() => remove(essay.id)} className="text-muted hover:text-danger transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+        <div>
+          {grouped.map(([key, group]) => (
+            <div key={key} className="mb-6">
+              <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3 px-1">
+                {key === '__common__' ? 'Common App / Other' : key}
+              </h2>
+              <div className="flex flex-col gap-3">
+                {group.map(essay => (
+                  <EssayCard key={essay.id} essay={essay} update={update} remove={remove} />
+                ))}
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

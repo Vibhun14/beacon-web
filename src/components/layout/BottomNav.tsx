@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, School, FileText, Mail, Settings } from 'lucide-react'
+import { LayoutDashboard, School, FileText, Mail, GitCompare } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const NAV = [
@@ -7,7 +7,7 @@ const NAV = [
   { to: '/schools', icon: School, label: 'Schools' },
   { to: '/essays', icon: FileText, label: 'Essays' },
   { to: '/lors', icon: Mail, label: 'LORs' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/compare', icon: GitCompare, label: 'Compare' },
 ]
 
 export function BottomNav() {

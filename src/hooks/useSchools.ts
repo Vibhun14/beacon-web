@@ -6,7 +6,6 @@ import toast from 'react-hot-toast'
 import { FirebaseError } from 'firebase/app'
 
 function fbMsg(err: unknown, fallback: string): string {
-  console.error('Firebase error:', JSON.stringify(err))
   if (err instanceof FirebaseError) {
     if (err.code === 'permission-denied')
       return 'Firestore permission denied — paste firestore.rules into Firebase Console → Firestore → Rules'

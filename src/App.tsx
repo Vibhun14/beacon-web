@@ -11,6 +11,7 @@ import { EssaysPage } from '@/pages/EssaysPage'
 import { LORsPage } from '@/pages/LORsPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { ComparePage } from '@/pages/ComparePage'
 import { Spinner } from '@/components/ui'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -57,6 +58,7 @@ function AppRoutes() {
       <Route path="/essays" element={<ProtectedRoute><EssaysPage /></ProtectedRoute>} />
       <Route path="/lors" element={<ProtectedRoute><LORsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

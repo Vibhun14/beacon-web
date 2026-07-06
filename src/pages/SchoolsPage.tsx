@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, Plus, ExternalLink, Trash2, X, Globe } from 'lucide-react'
 import { useSchools } from '@/hooks/useSchools'
 import { useAuth } from '@/context/AuthContext'
 import { useProfile } from '@/context/ProfileContext'
-import { searchSchools } from '@/lib/collegeScorecard'
+import { searchLocalColleges, getCollegeById } from '@/lib/collegeScorecard'
+import { addEssay } from '@/lib/db'
 import { Card, Button, Input, Select, Badge, Spinner } from '@/components/ui'
-import type { ApplicationStatus, DecisionPlan, ScorecardSchool, School, OnboardingData } from '@/types'
+import type { ApplicationStatus, DecisionPlan, CollegeData, School, OnboardingData } from '@/types'
 import toast from 'react-hot-toast'
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -52,54 +53,53 @@ export function SchoolsPage() {
   const { profile } = useProfile()
   const { schools, loading, add, update, remove } = useSchools()
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<ScorecardSchool[]>([])
-  const [searching, setSearching] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null)
+  const [selectedCollege, setSelectedCollege] = useState<CollegeData | null>(null)
   const [detailForm, setDetailForm] = useState({ deadline: '', portalUrl: '', notes: '', decisionPlan: 'RD' as DecisionPlan })
   const [savingDetail, setSavingDetail] = useState(false)
 
-  // Debounced live search — fires 400 ms after the user stops typing
-  useEffect(() => {
-    if (query.trim().length < 2) { setResults([]); return }
-    const timer = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const res = await searchSchools(query)
-        setResults(res)
-      } catch {
-        toast.error('Search failed')
-      } finally {
-        setSearching(false)
-      }
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [query])
+  // Synchronous local search — derive results directly, no state or debounce needed
+  const results = query.trim().length >= 1 ? searchLocalColleges(query) : []
 
-  const handleAdd = async (s: ScorecardSchool) => {
-    if (!user || !s['school.name']) return
-    const cr = s['latest.admissions.sat_scores.midpoint.critical_reading'] ?? 0
-    const math = s['latest.admissions.sat_scores.midpoint.math'] ?? 0
-    const satTotal = cr + math
+  const handleAdd = async (college: CollegeData) => {
+    if (!user) return
     await add({
       userId: user.uid,
-      unitId: s.id,
-      name: s['school.name'] ?? '',
-      city: s['school.city'] ?? '',
-      state: s['school.state'] ?? '',
-      website: s['school.school_url'],
-      acceptanceRate: s['latest.admissions.admission_rate.overall'],
-      avgSAT: satTotal > 0 ? satTotal : undefined,
-      avgACT: s['latest.admissions.act_scores.midpoint.cumulative'],
-      inStateTuition: s['latest.cost.tuition.in_state'],
-      outStateTuition: s['latest.cost.tuition.out_of_state'],
-      enrollment: s['latest.student.size'],
+      unitId: 0,
+      collegeId: college.id,
+      name: college.name,
+      city: college.location.city,
+      state: college.location.state,
+      acceptanceRate: college.cds.acceptanceRate,
+      avgSAT: college.cds.sat50,
+      avgACT: college.cds.act50,
+      inStateTuition: college.tuitionInState,
+      outStateTuition: college.tuitionOutOfState,
+      enrollment: college.totalEnrollment,
+      ranking: college.rankingOverall,
+      averageAid: college.averageAid,
+      averageStartingSalary: college.averageStartingSalary,
       status: 'researching',
       decisionPlan: 'RD',
     })
+    // Auto-create essay prompts
+    if (college.supplementalPrompts.length > 0 && user) {
+      await Promise.all(college.supplementalPrompts.map(p =>
+        addEssay({
+          userId: user.uid,
+          schoolId: college.id,
+          schoolName: college.name,
+          prompt: p.prompt,
+          wordLimit: p.wordLimit ?? undefined,
+          category: p.category,
+          status: 'not_started',
+        })
+      ))
+      toast.success(`Added ${college.supplementalPrompts.length} essay prompt${college.supplementalPrompts.length !== 1 ? 's' : ''} for ${college.name}`)
+    }
     setShowSearch(false)
     setQuery('')
-    setResults([])
   }
 
   const openDetail = (school: School) => {
@@ -110,6 +110,11 @@ export function SchoolsPage() {
       notes: school.notes ?? '',
       decisionPlan: school.decisionPlan,
     })
+    if (school.collegeId) {
+      setSelectedCollege(getCollegeById(school.collegeId) ?? null)
+    } else {
+      setSelectedCollege(null)
+    }
   }
 
   const handleSaveDetail = async () => {
@@ -158,23 +163,17 @@ export function SchoolsPage() {
                   placeholder="Type a school name…"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  className="w-full bg-ink border border-border rounded-xl pl-8 pr-8 py-2.5 text-sm text-light placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
+                  className="w-full bg-ink border border-border rounded-xl pl-8 pr-4 py-2.5 text-sm text-light placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
                 />
-                {searching && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-border border-t-beacon rounded-full animate-spin" />
-                )}
               </div>
-              {query.trim().length > 0 && query.trim().length < 2 && (
-                <p className="text-xs text-muted mt-2">Keep typing…</p>
-              )}
             </div>
             {results.length > 0 && (
               <div className="border-t border-border max-h-72 overflow-y-auto">
-                {results.map(s => (
-                  <button key={s.id} onClick={() => handleAdd(s)} className="w-full flex items-center justify-between px-5 py-3 hover:bg-border transition-colors text-left">
+                {results.map(c => (
+                  <button key={c.id} onClick={() => handleAdd(c)} className="w-full flex items-center justify-between px-5 py-3 hover:bg-border transition-colors text-left">
                     <div>
-                      <p className="text-sm font-medium text-light">{s['school.name'] ?? 'Unknown'}</p>
-                      <p className="text-xs text-muted">{[s['school.city'], s['school.state']].filter(Boolean).join(', ')}</p>
+                      <p className="text-sm font-medium text-light">{c.name}</p>
+                      <p className="text-xs text-muted">{c.location.city}, {c.location.state}{c.rankingOverall ? ` · #${c.rankingOverall}` : ''}</p>
                     </div>
                     <Plus size={14} className="text-beacon shrink-0" />
                   </button>
@@ -216,8 +215,35 @@ export function SchoolsPage() {
                 <StatRow label="Enrollment" value={fmt(selectedSchool.enrollment)} />
                 <StatRow label="In-State Tuition" value={fmt(selectedSchool.inStateTuition, '$')} />
                 <StatRow label="Out-of-State Tuition" value={fmt(selectedSchool.outStateTuition, '$')} />
+                {selectedSchool.ranking != null && <StatRow label="Ranking" value={`#${selectedSchool.ranking}`} />}
+                {selectedSchool.averageAid != null && <StatRow label="Avg Aid" value={fmt(selectedSchool.averageAid, '$')} />}
               </div>
             </div>
+
+            {/* Beacon enriched data */}
+            {selectedCollege && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-xs font-medium text-muted uppercase tracking-wide mb-3">From Beacon Data</h3>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                  {selectedCollege.rankingOverall && <StatRow label="National Ranking" value={`#${selectedCollege.rankingOverall}`} />}
+                  {selectedCollege.averageAid > 0 && <StatRow label="Average Aid" value={`$${selectedCollege.averageAid.toLocaleString()}`} />}
+                  {selectedCollege.averageAid > 0 && <StatRow label="Est. Net Cost" value={`$${(selectedCollege.tuitionOutOfState - selectedCollege.averageAid).toLocaleString()}`} />}
+                  {selectedCollege.averageStartingSalary > 0 && <StatRow label="Avg Starting Salary" value={`$${selectedCollege.averageStartingSalary.toLocaleString()}`} />}
+                  <StatRow label="Campus" value={selectedCollege.campusSetting} />
+                  <StatRow label="Type" value={selectedCollege.type} />
+                  {selectedCollege.deadlines.earlyDecision && <StatRow label="ED Deadline" value={selectedCollege.deadlines.earlyDecision} />}
+                  {selectedCollege.deadlines.earlyAction && <StatRow label="EA Deadline" value={selectedCollege.deadlines.earlyAction} />}
+                  {selectedCollege.deadlines.regularDecision && <StatRow label="RD Deadline" value={selectedCollege.deadlines.regularDecision} />}
+                  <StatRow label="Counselor LOR" value={selectedCollege.lorRequirements.counselor ? 'Required' : 'Not Required'} />
+                  <StatRow label="Teacher LORs" value={`${selectedCollege.lorRequirements.teacherCount} required`} />
+                </div>
+                {selectedCollege.supplementalPrompts.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-muted">{selectedCollege.supplementalPrompts.length} supplemental essay{selectedCollege.supplementalPrompts.length !== 1 ? 's' : ''} required</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Editable fields */}
             <div className="p-6 flex flex-col gap-4">
@@ -275,6 +301,7 @@ export function SchoolsPage() {
                       </a>
                     )}
                     {tier && <Badge color={TIER_COLOR[tier]}>{tier}</Badge>}
+                    {school.ranking != null && <span className="text-xs text-muted">#{school.ranking}</span>}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 text-xs text-muted">
                     <span>{school.city}, {school.state}</span>
