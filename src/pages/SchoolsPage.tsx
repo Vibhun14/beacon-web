@@ -529,7 +529,7 @@ School: ${school.name}, admit rate: ${school.acceptanceRate != null ? Math.round
                   <div>
                     <label className="text-xs font-medium text-body uppercase tracking-wide block mb-1.5">Interview Type</label>
                     <select value={detailForm.interviewType} onChange={e => setDetailForm(f => ({ ...f, interviewType: e.target.value as 'None'|'Alumni'|'Optional'|'Required' }))}
-                      className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40">
+                      className="w-full bg-ink border border-border rounded-xl pl-3 pr-8 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40">
                       {['None','Alumni','Optional','Required'].map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </div>

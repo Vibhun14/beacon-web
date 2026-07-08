@@ -182,7 +182,7 @@ export function ScholarshipsPage() {
                   <select
                     value={s.status}
                     onChange={e => updateStatus(s.id, e.target.value as ScholarshipStatus)}
-                    className="bg-surface border border-border rounded-xl px-3 py-1.5 text-xs text-light focus:outline-none focus:ring-2 focus:ring-beacon/40"
+                    className="bg-surface border border-border rounded-xl pl-3 pr-8 py-1.5 text-xs text-light focus:outline-none focus:ring-2 focus:ring-beacon/40"
                   >
                     {(Object.keys(STATUS_LABELS) as ScholarshipStatus[]).map(k => (
                       <option key={k} value={k}>{STATUS_LABELS[k]}</option>

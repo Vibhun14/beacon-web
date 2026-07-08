@@ -79,7 +79,7 @@ function ActivityCard({ activity: a, index, total, onChange, onMove, onDelete }:
           <label className="text-xs font-medium text-body uppercase tracking-wide block mb-1.5">Activity Type</label>
           <select
             value={a.type} onChange={e => onChange({ ...a, type: e.target.value as ActivityType })}
-            className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
+            className="w-full bg-ink border border-border rounded-xl pl-3 pr-8 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
           >
             {ACTIVITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -181,7 +181,7 @@ function HonorCard({ honor: h, index, onChange, onDelete }: {
           <label className="text-xs text-muted">Level:</label>
           <select
             value={h.level} onChange={e => onChange({ ...h, level: e.target.value as HonorLevel })}
-            className="bg-ink border border-border rounded-xl px-3 py-1.5 text-xs text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
+            className="bg-ink border border-border rounded-xl pl-3 pr-8 py-1.5 text-xs text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
           >
             {HONOR_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
@@ -327,7 +327,7 @@ function StatsTab({ stats, activitiesCount, honorsCount, onChange, onBlur }: Sta
                 />
                 <select
                   value={ap.score} onChange={e => { setAP(i, 'score', e.target.value); onBlur() }}
-                  className="w-16 bg-ink border border-border rounded-xl px-2 py-2 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
+                  className="w-16 bg-ink border border-border rounded-xl pl-2 pr-6 py-2 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all"
                 >
                   {[5, 4, 3, 2, 1].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>

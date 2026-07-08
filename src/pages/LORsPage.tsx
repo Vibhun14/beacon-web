@@ -258,7 +258,7 @@ Requirements:
                     <select
                       value={draftTone}
                       onChange={e => setDraftTone(e.target.value as 'formal' | 'warm' | 'casual')}
-                      className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40"
+                      className="w-full bg-ink border border-border rounded-xl pl-3 pr-8 py-2.5 text-sm text-light focus:outline-none focus:ring-2 focus:ring-beacon/40"
                     >
                       <option value="warm">Warm</option>
                       <option value="formal">Formal</option>

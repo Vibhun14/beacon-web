@@ -77,7 +77,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         ref={ref}
         id={id}
         className={clsx(
-          'w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-light font-sans',
+          'w-full bg-surface border border-border rounded-xl pl-3 pr-8 py-2.5 text-sm text-light font-sans',
           'focus:outline-none focus:ring-2 focus:ring-beacon/40 transition-all duration-150',
           'hover:border-muted',
           className
