@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { inject } from '@vercel/analytics'
+inject()
 
 window.addEventListener('unhandledrejection', (e) => {
   if (e.reason?.message?.includes('message channel closed')) e.preventDefault()
