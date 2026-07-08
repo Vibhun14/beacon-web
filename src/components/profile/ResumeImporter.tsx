@@ -87,7 +87,8 @@ export function ResumeImporter({ onImport }: Props) {
           ]
         }]
       })
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      const raw = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('No JSON in response')
       const result = JSON.parse(jsonMatch[0]) as ParsedResult
       setParsed(result)
@@ -107,10 +108,31 @@ export function ResumeImporter({ onImport }: Props) {
     const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s
   })
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sanitizeActivity = (a: any): Activity => ({
+    type: a.type ?? 'Other',
+    organization: a.organization ?? '',
+    role: a.role ?? '',
+    description: a.description ?? '',
+    grades: a.grades ?? [],
+    hoursPerWeek: a.hoursPerWeek ?? 0,
+    weeksPerYear: a.weeksPerYear ?? 0,
+    continueInCollege: a.continueInCollege ?? false,
+    timing: a.timing ?? 'School year',
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sanitizeHonor = (h: any): Honor => ({
+    title: h.title ?? '',
+    grades: h.grades ?? [],
+    level: h.level ?? 'School',
+    description: h.description ?? '',
+  })
+
   const handleImport = () => {
     if (!parsed) return
-    const acts = parsed.activities.filter((_, i) => selectedActs.has(i))
-    const hons = parsed.honors.filter((_, i) => selectedHons.has(i))
+    const acts = parsed.activities.filter((_, i) => selectedActs.has(i)).map(sanitizeActivity)
+    const hons = parsed.honors.filter((_, i) => selectedHons.has(i)).map(sanitizeHonor)
     onImport(acts, hons)
     toast.success(`Imported ${acts.length} activities, ${hons.length} honors`)
     handleClose()

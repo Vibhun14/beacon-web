@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Spinner } from '@/components/ui'
+import { addWaitlistEmail } from '@/lib/db'
 
 // Landing page is always dark — use hardcoded dark palette hex values
 // so it looks correct regardless of the user's app theme setting.
@@ -363,6 +365,52 @@ function Footer() {
   )
 }
 
+function WaitlistSection() {
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setBusy(true)
+    try { await addWaitlistEmail(email.trim()); setSubmitted(true) }
+    catch { /* silently fail */ }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <section className="py-20 px-6">
+      <div className="max-w-xl mx-auto text-center">
+        <p className="text-[#5B8AF0] text-xs font-semibold uppercase tracking-widest mb-4">Stay updated</p>
+        <h2 className="font-display text-[36px] text-[#E4E8F5] mb-4">Stay in the loop</h2>
+        <p className="text-[#A8B0C8] text-base mb-8">Be the first to know about new features and updates.</p>
+        {submitted ? (
+          <p className="text-[#5B8AF0] font-medium text-sm">You're on the list!</p>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <input
+              type="email"
+              required
+              placeholder="your@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="flex-1 bg-[#181C27] border border-[#252A3A] rounded-xl px-4 py-3 text-sm text-[#E4E8F5] placeholder:text-[#4A5168] focus:outline-none focus:border-[#5B8AF0]/50"
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-5 py-3 bg-[#5B8AF0] text-white rounded-xl text-sm font-medium hover:bg-[#4a79df] transition-colors disabled:opacity-60"
+            >
+              {busy ? '…' : 'Notify me'}
+            </button>
+          </form>
+        )}
+      </div>
+    </section>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function LandingPage() {
@@ -385,6 +433,7 @@ export function LandingPage() {
       <StatsStrip />
       <ActivitiesTeaser />
       <ResumeTeaser />
+      <WaitlistSection />
       <Footer />
     </div>
   )

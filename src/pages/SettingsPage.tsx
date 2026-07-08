@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useProfile } from '@/context/ProfileContext'
 import { Button, Input, Select, Combobox, type ComboboxOption } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
+import { PrintView } from '@/components/export/PrintView'
 import toast from 'react-hot-toast'
 
 const US_STATES: ComboboxOption[] = [
@@ -185,6 +186,12 @@ export function SettingsPage() {
         <h2 className="font-semibold text-light mb-1">Account</h2>
         <p className="text-sm text-muted">{user?.email}</p>
       </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-card p-6 mt-4">
+        <h2 className="font-semibold text-light mb-1">Export</h2>
+        <p className="text-sm text-muted mb-4">Download a PDF summary of your entire application.</p>
+        <Button onClick={() => window.print()}>Export Application Summary</Button>
+      </div>
+      <PrintView />
     </div>
   )
 }

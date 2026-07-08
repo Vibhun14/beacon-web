@@ -14,7 +14,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
-import type { School, Essay, LOR, OnboardingData, Activity, Honor, ProfileStats } from '@/types'
+import type { School, Essay, LOR, OnboardingData, Activity, Honor, ProfileStats, Scholarship, AdditionalInfo } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ export async function setProfile(uid: string, data: OnboardingData): Promise<voi
 }
 
 export async function updateProfileStats(uid: string, data: ProfileStats): Promise<void> {
-  await setDoc(doc(db, 'profiles', uid), data, { merge: true })
+  await setDoc(doc(db, 'profiles', uid), stripUndefined(data), { merge: true })
 }
 
 // ─── Activities ───────────────────────────────────────────────────────────────
@@ -186,4 +186,47 @@ export async function getHonors(uid: string): Promise<Honor[]> {
 
 export async function setHonorsDoc(uid: string, honors: Honor[]): Promise<void> {
   await setDoc(doc(db, 'honors', `${uid}_honors`), { honors })
+}
+
+// ─── Scholarships ─────────────────────────────────────────────────────────────
+
+export async function getScholarships(uid: string): Promise<Scholarship[]> {
+  const snap = await getDoc(doc(db, 'scholarships', `${uid}_scholarships`))
+  return snap.exists() ? (snap.data().scholarships ?? []) as Scholarship[] : []
+}
+
+export async function setScholarshipsDoc(uid: string, scholarships: Scholarship[]): Promise<void> {
+  await setDoc(doc(db, 'scholarships', `${uid}_scholarships`), { scholarships })
+}
+
+// ─── Additional Info ──────────────────────────────────────────────────────────
+
+export async function getAdditionalInfo(uid: string): Promise<AdditionalInfo | null> {
+  const snap = await getDoc(doc(db, 'profiles', uid))
+  return snap.exists() ? (snap.data().additionalInfo ?? null) : null
+}
+
+export async function updateAdditionalInfo(uid: string, data: AdditionalInfo): Promise<void> {
+  await setDoc(doc(db, 'profiles', uid), { additionalInfo: data }, { merge: true })
+}
+
+// ─── Personal Statement ───────────────────────────────────────────────────────
+
+export async function getPersonalStatement(uid: string): Promise<{ status: string; wordCount: number; notes: string } | null> {
+  const snap = await getDoc(doc(db, 'profiles', uid))
+  return snap.exists() ? (snap.data().personalStatement ?? null) : null
+}
+
+export async function updatePersonalStatement(uid: string, data: { status?: string; wordCount?: number; notes?: string }): Promise<void> {
+  await setDoc(doc(db, 'profiles', uid), { personalStatement: data }, { merge: true })
+}
+
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
+
+export async function addWaitlistEmail(email: string): Promise<void> {
+  await addDoc(collection(db, 'waitlist'), {
+    email,
+    source: 'landing',
+    createdAt: serverTimestamp(),
+  })
 }

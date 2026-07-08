@@ -49,6 +49,12 @@ export interface School {
   deadline?: string           // ISO date string
   portalUrl?: string
   notes?: string
+  checklist?: Record<string, boolean>
+  interviewType?: 'None' | 'Alumni' | 'Optional' | 'Required'
+  interviewDate?: string
+  interviewFormat?: 'Virtual' | 'In-Person'
+  interviewNotes?: string
+  interviewOutcome?: string
   createdAt: string
   updatedAt: string
 }
@@ -206,6 +212,39 @@ export interface ProfileStats {
   classRank?: number
   classSize?: number
   apScores?: { subject: string; score: number }[]
+}
+
+// ─── School Checklist & Interview ────────────────────────────────────────────
+
+export const CHECKLIST_KEYS = [
+  'portalCreated', 'commonAppSubmitted', 'supplementSubmitted', 'appFeePaid',
+  'testScoresSent', 'counselorLOR', 'teacherLOR1', 'teacherLOR2', 'cssProfile', 'fafsa',
+] as const
+export type ChecklistKey = typeof CHECKLIST_KEYS[number]
+
+// ─── Scholarships ─────────────────────────────────────────────────────────────
+
+export type ScholarshipStatus = 'not_started' | 'applied' | 'awarded' | 'rejected'
+
+export interface Scholarship {
+  id: string
+  name: string
+  amount?: number
+  deadline?: string
+  status: ScholarshipStatus
+  link?: string
+  notes?: string
+}
+
+// ─── Additional Info ─────────────────────────────────────────────────────────
+
+export interface AdditionalInfo {
+  github?: string
+  linkedin?: string
+  website?: string
+  portfolio?: string
+  publications?: string
+  other?: string
 }
 
 // ─── AI Features ─────────────────────────────────────────────────────────────

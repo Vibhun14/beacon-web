@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
+import { FloatingAI } from './FloatingAI'
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <BottomNav />
+      <FloatingAI />
     </div>
   )
 }

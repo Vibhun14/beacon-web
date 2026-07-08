@@ -52,6 +52,23 @@ service cloud.firestore {
       allow read, write: if request.auth != null && docId == request.auth.uid + '_honors';
     }
 
+    match /scholarships/{docId} {
+      allow read, write: if request.auth != null && docId == request.auth.uid + '_scholarships';
+    }
+
+    match /research/{docId} {
+      allow read, write: if request.auth != null && docId == request.auth.uid + '_research';
+    }
+
+    match /awards/{docId} {
+      allow read, write: if request.auth != null && docId == request.auth.uid + '_awards';
+    }
+
+    match /waitlist/{docId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
     match /community/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;

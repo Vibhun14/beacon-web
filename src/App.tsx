@@ -15,6 +15,7 @@ import { ComparePage } from '@/pages/ComparePage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { LandingPage } from '@/pages/LandingPage'
+import { ScholarshipsPage } from '@/pages/ScholarshipsPage'
 import { Spinner } from '@/components/ui'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,7 @@ function AppRoutes() {
       <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/scholarships" element={<ProtectedRoute><ScholarshipsPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
     </Routes>
   )

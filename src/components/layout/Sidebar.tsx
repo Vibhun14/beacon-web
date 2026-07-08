@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun, GitCompare, CalendarDays, User } from 'lucide-react'
+import { LayoutDashboard, School, FileText, Mail, Settings, LogOut, Moon, Sun, GitCompare, CalendarDays, User, DollarSign } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { to: '/profile', icon: User, label: 'Profile' },
   { to: '/lors', icon: Mail, label: 'Recommendations' },
+  { to: '/scholarships', icon: DollarSign, label: 'Scholarships' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
