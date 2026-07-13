@@ -49,25 +49,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { user, loading } = useAuth()
-  if (loading) return (
-    <div className="min-h-screen bg-ink flex items-center justify-center"><Spinner /></div>
-  )
 
   return (
     <Routes>
+      {/* Always render LandingPage directly at "/" — no auth gate — so it stays
+          crawlable. LandingPage handles its own loading state and redirects
+          to /dashboard itself if the user turns out to already be logged in. */}
       <Route path="/" element={<LandingPage />} />
-      <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
-      <Route path="/onboarding" element={user ? <OnboardingPage /> : <Navigate to="/auth" replace />} />
-      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/schools" element={<ProtectedRoute><SchoolsPage /></ProtectedRoute>} />
-      <Route path="/essays" element={<ProtectedRoute><EssaysPage /></ProtectedRoute>} />
-      <Route path="/lors" element={<ProtectedRoute><LORsPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
-      <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-      <Route path="/scholarships" element={<ProtectedRoute><ScholarshipsPage /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
+      {loading ? (
+        <Route path="*" element={
+          <div className="min-h-screen bg-ink flex items-center justify-center"><Spinner /></div>
+        } />
+      ) : (
+        <>
+          <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
+          <Route path="/onboarding" element={user ? <OnboardingPage /> : <Navigate to="/auth" replace />} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/schools" element={<ProtectedRoute><SchoolsPage /></ProtectedRoute>} />
+          <Route path="/essays" element={<ProtectedRoute><EssaysPage /></ProtectedRoute>} />
+          <Route path="/lors" element={<ProtectedRoute><LORsPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/scholarships" element={<ProtectedRoute><ScholarshipsPage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
+        </>
+      )}
     </Routes>
   )
 }
